@@ -1,8 +1,8 @@
 import axiosInstance from '../services/axiosInstanceConfig'; 
 
-export default function getHotels(currentPage) {
+ const getHotels = async(currentPage) => {
     
-    return axiosInstance.get('/api/hotels', {
+    const response = axiosInstance.get('/api/hotels', {
         params: {
             page: currentPage
         }
@@ -28,4 +28,8 @@ export default function getHotels(currentPage) {
             console.log('Error', error.message);
         }
     });
+    
+    return response;
 }
+
+export default getHotels;

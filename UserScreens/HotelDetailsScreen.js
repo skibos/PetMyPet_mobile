@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Button, TouchableWithoutFeedback, ScrollView, Dimensions, TouchableWithoutFeedbackBase, FlatList, SafeAreaView } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { View, Text, StyleSheet, Button, TouchableOpacity, ScrollView, Dimensions, ImageBackground, Image, Alert, SafeAreaView } from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 import MapView from 'react-native-maps';
 import { Marker } from 'react-native-maps';
 import {Calendar} from 'react-native-calendars';
@@ -9,32 +9,33 @@ import RNPickerSelect from 'react-native-picker-select';
 import getSecureData from '../storage/getSecureData';
 import getHotelDetails from '../services/getHotelDetails';
 import getAnimalTypes from '../storage/getAnimalTypes';
-import getDayOffByHotel from '../services/getDayOffByHotel';
-import getDatesBetween from '../services/getDatesBetween';
 import {Linking} from 'react-native'
+import { SliderBox } from "react-native-image-slider-box";
+import getFavourites from '../services/getFavourites';
+import addFavourite from '../services/addFavourite'
+import deleteFavourite from '../services/deleteFavourite'
+import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '@react-navigation/native';
+import getImage from "../services/getImage"
+import axiosInstance from '../services/axiosInstanceConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const Pin = {
-    latitude: 53.49188,
-    longitude: 18.74975,
-};
 
 const HotelDetailsScreen = ({ route, navigation }) => {
+    const { colors } = useTheme();
 
-    const { id } = route.params;
-    const [allTypesAnimals, setAllTypesAnimals] = useState(); // all types from async storage
+    const { id, isLogged } = route.params;
     const [priceList, setPriceList] = useState ([]); // converted pricelist
-    const [descriptionMore, setDescriptionMore] = useState(false);
-    const [typeOfPet, setTypeOfPet] = useState(); // selected type from picker
-    const [listTypeOfPets, setListTypeOfPets] = useState ([]); // converted listOfPets to picker
-    const [isSelectType, setIsSelectType] = useState(false); // if type is selected show calendar
-    const [isUser, setIsUser] = useState(true); // check authority, button booking visible depend on authority
-    const [closedDays, setClosedDays] = useState({});
-    const [phoneNumberMore, setPhoneNumberMore] = useState(false);
+    const [isUser, setIsUser] = useState(); // check authority, button booking visible depend on authority
+    const [images, setImages] = useState([]);
+    const [fav, setFav] = useState([]); // array of favourites hotels 
 
     const [data, setData] = useState({ // data from api about hotel
         city: "",
         contactEmail: "",
         description: "",
+        lat: 14.53223,
+        lon: 53.43345,
         hotelScores: {
           reviewsAmount: "",
           score: "",
@@ -49,80 +50,71 @@ const HotelDetailsScreen = ({ route, navigation }) => {
     }); 
 
     useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
 
-        Promise.all([getAnimalTypes(),getHotelDetails(id)]).then( res => {
-
-            setAllTypesAnimals(res[0]) // fill data
-            setData(res[1])
-            console.log(res[1])
-            if(priceList.length === 0 && listTypeOfPets.length === 0){ // fill pricelist and picker
-                let singleType;
-                let arrayForPrice = [];
-                let arrayForListTypes = [];
-                Object.entries(res[1].prices).forEach(entry => {
-                    const [key, value] = entry;
-                    singleType = {
-                        id: key,
-                        type: res[0][key],
-                        price: value
-                    }
-                    arrayForPrice.push(singleType);
-                    singleType = {
-                        label: res[0][key].charAt(0).toUpperCase() + res[0][key].slice(1),
-                        value: key
-                    }
-                    arrayForListTypes.push(singleType)
-                })
-                setPriceList(arrayForPrice);
-                setListTypeOfPets(arrayForListTypes);
-            }
+            Promise.all([getAnimalTypes(),getHotelDetails(id)]).then( async(res) => {
             
-        })
+                setData(res[1])
+    
+                var arr = []
+                arr = await getImage(res[1].id);
+                if(arr !== null && arr !== undefined){
+                    arr = arr.map(el => axiosInstance.defaults.baseURL + "/images/getResizedImageByPath/" + el + "/?width=200&height=200");
+                }
+                if(arr.length == 0){
+                    arr[0] = require('../assets/brakZdj.png');
+                }
+                setImages(arr);
+    
+    
+                if(priceList.length === 0){ // fill pricelist
+                    let singleType;
+                    let arrayForPrice = [];
+                    Object.entries(res[1].prices).forEach(entry => {
+                        const [key, value] = entry;
+                        singleType = {
+                            id: key,
+                            type: res[0][key],
+                            price: value
+                        }
+                        arrayForPrice.push(singleType);
+                    })
+                    setPriceList(arrayForPrice);
+                }
+            })
+    
 
-        getSecureData().then(res => { /* dont show booking screen when owner */
-            if(res.authority == 'ROLE_USER'){
-                setIsUser(true);
-            }
-            else if(res.authority == 'ROLE_OWNER'){
-                setIsUser(false);
-            }
-        })
+        });
 
-    }, [])
+        return unsubscribe;
 
+    }, [navigation, data, priceList])
 
-    useEffect(async() => {
-        let newDates = JSON.parse(JSON.stringify(closedDays)) // get reference (markedDates param is immutable)
-        newDates = {} // clear marked dates
+    useFocusEffect( /* check if logged and get fav */
+        React.useCallback(() => {
+            if(route.params?.isLogged){
+                getSecureData().then(res => { /* dont show booking screen when owner */
+                    if(res.authority == 'ROLE_USER'){
+                        setIsUser(true);
 
-        getDayOffByHotel(id).then(response => {
+                        setFav([]);
+                
+                        getFavourites().then(favourites => {
+                            if(favourites !== undefined){
+                                favourites.forEach(el => {
+                                        setFav(previousState => [el.id, ...previousState])
+                                })
+                            }
+                        })
 
-            if(response != null){
-
-                let closedDaysByType = response.filter(el => el.animalType == typeOfPet)
-
-                let arrayOfDates = new Array();
-                let today = new Date();
-                today.setHours(0,0,0,0);
-
-                closedDaysByType.forEach(el => {
-                    if(new Date(el.endingDate) >= today && new Date(el.startingDate) >= today){
-                        arrayOfDates = [...arrayOfDates, ...getDatesBetween(new Date(el.startingDate), new Date(el.endingDate))]
                     }
-                    else if(new Date(el.endingDate) >= today && new Date(el.startingDate) < today){
-                        arrayOfDates = [...arrayOfDates, ...getDatesBetween(today, new Date(el.endingDate))]
+                    else if(res.authority == 'ROLE_OWNER'){
+                        setIsUser(false);
                     }
                 })
-
-                for(const day of arrayOfDates){
-                    newDates[day] = { color: 'red', textColor: 'black'}
-                }
-                
-                setClosedDays(newDates)
             }
-        })
-
-    }, [typeOfPet])
+        }, [navigation])
+    );
 
     return (
     <SafeAreaView style={styles.screen}>
@@ -130,7 +122,29 @@ const HotelDetailsScreen = ({ route, navigation }) => {
         <ScrollView>
             <View style={styles.containerForAll}>
                 <View style={styles.photo}>
-                    <Text>{/* photo */}</Text>
+                    <SliderBox images={images}
+                      ImageComponent={ImageBackground}
+                      ImageComponentStyle={{ width: '100%'}}
+                      resizeMode={"stretch"}
+                      sliderBoxHeight={300}
+                    >
+                        {route.params?.isLogged && isUser &&
+                            <View style={styles.heartIcon}>
+                                <TouchableOpacity onPress={() => {
+                                    if(fav.includes(id)){ // is favourite and delete from favourite
+                                        deleteFavourite(id)
+                                        setFav(fav.filter(el => el != id))
+                                    }
+                                    else{ // add to favourite
+                                        addFavourite(id)
+                                        setFav([id, ...fav])
+                                    }
+                                }}>
+                                    <Image source={fav.includes(id) ? require('../assets/paw-fav.png') : require('../assets/paw.png')} style={{height: 40, width: 40}}/> 
+                                </TouchableOpacity>
+                            </View>
+                        }
+                    </SliderBox>
                 </View>
                 <View style={styles.hotelInfoContainer}>
                     <View style={styles.name}>
@@ -138,13 +152,13 @@ const HotelDetailsScreen = ({ route, navigation }) => {
                     </View>
                     <View style={styles.addressAndRatingContainer}>
                         <View style={styles.address}>
-                            <Text>{data.city}, </Text>
-                            <Text>{data.street}</Text>
-                            <Text>{data.zipcode}</Text>
+                            <Text style={styles.regularFontFamily}>{data.zipcode}, {data.city}</Text>
+                            <Text style={styles.regularFontFamily}>{data.street}</Text>
                         </View>
                         <View style={styles.rating}>
+                            <Icon name={data.hotelScores.score == 0 || data.hotelScores.score == null  ? "star-outline" : "star"} size={25} color="#ffbc01"/>
                             <Text style={styles.ratingText}>{data.hotelScores.score ? data.hotelScores.score : 0}</Text>
-                            <Icon name="star-half-full" size={25} color="green"/>
+                            <Text style={styles.regularFontFamily}>({data.hotelScores.reviewsAmount ? data.hotelScores.reviewsAmount : 0} ocen)</Text>
                         </View>
                     </View>    
                 </View>
@@ -153,25 +167,20 @@ const HotelDetailsScreen = ({ route, navigation }) => {
                         <Text style={styles.descriptonHeaderText}>Opis</Text>
                     </View>
                     <View style={styles.descriptonContent}>
-                        {descriptionMore ? (<Text>{data.description}</Text>) : (
-                        <Text>
-                            <Text>{data.description.substring(0, 100)}</Text>
-                            <Text onPress={() => {setDescriptionMore(true)}} style={{color:"green"}} >...Pokaż więcej</Text>
-                        </Text>
-                        )}
+                        <Text style={styles.regularFontFamily}>{data.description}</Text>
                     </View>
                 </View>
                 <View style={styles.pricelist}>
                     <View style={styles.pricelistHeaderContainer}>
                         <View style={styles.pricelistHeader}>
-                            <Text>Cennik</Text>
+                            <Text style={styles.pricelistHeaderText}>Cennik</Text>
                         </View>
                         <View style={styles.pricelistHeaderOfTable}>
                             <View style={styles.column}>
-                                <Text>Typ zwierzęcia</Text>
+                                <Text style={styles.regularFontFamily}>typ</Text>
                             </View>
                             <View style={styles.column}>
-                                <Text>Cena</Text>
+                                <Text style={styles.regularFontFamily}>cena</Text>
                             </View>
                         </View>
                     </View>
@@ -180,112 +189,99 @@ const HotelDetailsScreen = ({ route, navigation }) => {
                         {priceList.map((price) => (
                             <View key={price.id} style={styles.singleRowInPricelist}>
                                 <View style={styles.column}>
-                                    <Text>{price.type}</Text>
+                                    <Text style={styles.regularFontFamily}>{price.type}</Text>
                                 </View>
                                 <View style={styles.column}>
-                                    <Text>{price.price}</Text>
+                                    <Text style={styles.regularFontFamily}>{price.price} zł</Text>
                                 </View>
                             </View>
                         ))}
                     </View>    
                 </View>
-                <View style={styles.checkTermAndReservContainer}>
-                    <View style={styles.headerOfCheckTerm}>
-                        <Text>Sprawdź terminy i zarezerwuj:</Text>
+                <View style={styles.mapContainer}>
+                    <View style={styles.mapHeader}>
+                        <Text style={styles.mapHeaderText}>Dojazd</Text>
                     </View>
-                    <View style={styles.textAndButtonContainer}>
-                        <View style={styles.buttonAddPets}>
-                            <RNPickerSelect
-                                onValueChange={(value) => {
-                                    setTypeOfPet(value)
-                                    if(value != null){
-                                        setIsSelectType(true)
-                                    }
-                                    else{
-                                        setIsSelectType(false)
-                                    }
-                                }}
-                                items={listTypeOfPets}
-                                useNativeAndroidPickerStyle={false}
-                                style={{
-                                    ...pickerSelectStyles,
-                                    iconContainer: {
-                                    top: 10,
-                                    right: 10,
-                                    },
-                                }}
-                                placeholder={{
-                                    label: 'Wybierz typ zwierzecia',
-                                    value: null,
-                                }}
-                                Icon={() => {
-                                    return <Icon name="arrow-down" size={24} />;
-                                }}
-                                value={typeOfPet}
-                            />
-                        </View>
-                        <View style={styles.price}>
-                            <Text>Cena:</Text>
-                            <Text>{isSelectType ? data.prices[typeOfPet] : 0}</Text>
-                        </View>
-                    </View>
-                    {isSelectType &&
-                    <View>
-                        <View style={styles.calendarContainer}>
-                            <View style={styles.calendarHeader}> 
-                                <Text>Zajęte terminy</Text>
-                            </View>
-                                <Calendar
-                                hideExtraDays={true}
-                                firstDay={1}
-                                markingType={'period'}
-                                markedDates={closedDays}
-                                style={{borderRadius: 20, overflow: "hidden"}}
-                                />
-                        </View>                                        
-                        <View style={styles.reservationButtonContainer}>
-                            { isUser &&
-                            <TouchableWithoutFeedback onPress={() => {navigation.navigate("Booking", {
-                                id: id,
-                                name: data.name,
-                                priceList: data.prices
-                            })}}>
-                                <View style={styles.reservationButton}>
-                                    <Text>Złóż rezerwacje</Text>
-                                </View>
-                            </TouchableWithoutFeedback>
-                            }
-                        </View>
-                    </View>
-                    }
-                </View>
-                
-                <View>
-                    <MapView
+                    {/* <MapView
                             style={styles.map}
                             provider={PROVIDER_GOOGLE}
-                            initialRegion={{
-                                latitude: 53.48371,
-                                longitude: 18.75352,
-                                latitudeDelta: 0.0922, 
-                                longitudeDelta: (0.0922 + (Dimensions.get("window").width / 120)),
+                            region={{
+                                latitude: data.lat,
+                                longitude: data.lon,
+                                latitudeDelta: 0.001, 
+                                longitudeDelta: 0,
                               }}
-                    >
-                            <Marker coordinate={ Pin }/>
-                    </MapView>
+                    >                    
+                            <Marker coordinate={{latitude: data.lat, longitude: data.lon}}/>
+                    </MapView> */}
                 </View>
             </View>
         </ScrollView>
-
+        { isUser || !isLogged ?
         <View style={styles.footer}>
-            <TouchableWithoutFeedback onPress={() => {
-                Linking.openURL(`tel:${data.phoneNumber}`)
-            }}>
-                <View style={styles.callButton}>
-                    <Text>Zadzwoń</Text>
+            <View style={styles.contactContainer}>
+                <View style={styles.callButtonContainer}>
+                    <TouchableOpacity onPress={() => {
+                        Linking.openURL(`tel:${data.phoneNumber}`)
+                    }}>
+                        <View style={styles.callButton}> 
+                            <Icon name="call-outline" size={25} color="black"/>
+                        </View>
+                    </TouchableOpacity>
                 </View>
-            </TouchableWithoutFeedback>
+                <TouchableOpacity onPress={() => {
+                    Linking.openURL(`mailto:${data.contactEmail}`)
+                }}>
+                    <View style={styles.callButton}> 
+                        <Icon name="mail-outline" size={25} color="black"/>
+                    </View>
+                </TouchableOpacity>
+            </View>
+            <View style={styles.bookingButtonContainer}>
+                <TouchableOpacity onPress={() => {
+                    if(isLogged){
+                        navigation.navigate("Booking", {
+                            id: id,
+                            name: data.name,
+                            priceList: data.prices
+                        })
+                    }
+                    else{
+                        Alert.alert(
+                            '',
+                            'Możliwość zarezerwowania obiektu dostępna jest jedynie po zalogowaniu się do aplikacji.',
+                            [
+                                { text: "Zamknij", style: "cancel" },
+                                { text: "Zaloguj się", onPress: () => navigation.navigate('Login') },
+                            ]
+                            
+                        )
+                    }
+                }}>
+                    <View style={[styles.bookingButton, {backgroundColor: colors.primary}]}>
+                        <Text style={styles.bookingButtonText}>Zarezerwuj</Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
+        </View> :
+        <View style={styles.footer}>
+            <View style={styles.editButtonContainer}>
+                <TouchableOpacity onPress={async() => {
+                        try {    
+                            await AsyncStorage.setItem('editHotelId', id.toString())
+                            navigation.navigate('EditHotelTab', {params:{id: id}, screen: 'EditHotel'})      
+                        } 
+                        catch (e) {    // saving error
+                            console.log(e)
+                        }    
+                    }}>
+                    <View style={[styles.bookingButton, {backgroundColor: colors.primary}]}>
+                        <Text style={styles.bookingButtonText}>Edytuj hotel</Text>
+                    </View>
+                </TouchableOpacity>
+            </View>
         </View>
+    }
     </View>
     </SafeAreaView>
     );
@@ -294,6 +290,7 @@ const HotelDetailsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     screen: {
         flex:1,
+        backgroundColor: "white",
     },
     containerForAll: {
         flexDirection: "column",
@@ -301,27 +298,29 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     photo: {
-        backgroundColor: "lightgrey",
-        height: 150,
+        height: 300,
     },
     hotelInfoContainer: {
-        backgroundColor: "white",
-        padding: 10,
+        margin: 10,
+        borderBottomColor: 'lightgrey',
+        borderBottomWidth: 1,
     },
     name: {
         alignItems: "center",
+        padding: 10,
     },
     nameText: {
         fontSize: 20,
-        fontWeight: "bold",
+        fontFamily: 'OpenSans_700Bold'
     },
     addressAndRatingContainer:{
         flex: 1,
         flexDirection: "row",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        padding: 10,
     },
     address:{
-        flex: 1,
+        flex: 3,
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "flex-start"
@@ -333,43 +332,56 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
     },
     ratingText: {
-        paddingHorizontal: 10,
+        paddingHorizontal: 5,
+        fontFamily: 'OpenSans_600SemiBold',
+        textDecorationLine: "underline"
     },
+
     descripton: {
-        backgroundColor: "lightgrey",
-        padding: 10,
+        paddingHorizontal:10,
+        paddingBottom: 10,
+        marginHorizontal: 10,
         marginBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: 'lightgrey',
     },
     descriptonHeader: {
         marginBottom: 10,
     },
     descriptonHeaderText:{
-        fontSize: 16,
+        fontSize: 18,
+        fontFamily: 'OpenSans_600SemiBold'
     },
     pricelist: {
         flex:1,
         flexDirection: "column",
-        backgroundColor: "lightgrey",
+        marginHorizontal: 10,
+        paddingHorizontal:10,
         marginBottom: 10,
+        paddingBottom:10,
+        borderBottomWidth: 1,
+        borderBottomColor: 'lightgrey',
     },
     pricelistHeaderContainer: {
         flexDirection: "column"
     },
     pricelistHeader: {
         flex:1,
-        padding: 10,
-        justifyContent: "center",
-        alignItems: "center"
+        justifyContent: "flex-start",
+        alignItems: "flex-start"
+    },
+    pricelistHeaderText:{
+        fontSize: 18,
+        fontFamily: 'OpenSans_600SemiBold'
     },
     pricelistHeaderOfTable: {
-        backgroundColor: "grey",
         flexDirection: "row",
     },
     column:{
         flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 5,
+        justifyContent: "flex-start",
+        alignItems: "flex-start",
+        paddingVertical: 10,
     },
     contentOfPricelist:{
         flexDirection: "column",
@@ -377,96 +389,72 @@ const styles = StyleSheet.create({
     singleRowInPricelist:{
         flexDirection: "row"
     },
-    checkTermAndReservContainer:{
-        backgroundColor: "lightgrey",
-        padding: 10,
-        marginBottom: 10,
-        flexDirection: "column"
+    map: {
+        height: 300,
     },
-    headerOfCheckTerm:{
-        flex: 1,
-        alignItems:"center",
-    },
-    textAndButtonContainer: {
-        flex: 2,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        paddingHorizontal: "5%",
-        paddingVertical: 10,
-    },
-    buttonAddPets: {
-        flex: 2,
-    },
-    price: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "flex-end",
-    },
-    reservationButtonContainer: {
-        flex: 2,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    reservationButton: {
-        backgroundColor: "red",
-        padding: 10,
-        width: "90%",
-        justifyContent: "center",
-        alignItems: "center",
-        overflow: "hidden",
-        borderRadius: 12,
-    },
-    calendarContainer: {
-        marginBottom: 10,
+    mapContainer:{
+        paddingHorizontal: 10,
         flexDirection: "column",
     },
-    calendarHeader: {
+    mapHeader:{
         padding: 10,
-        backgroundColor: "lightgrey",
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: "flex-start",
+        alignItems:"flex-start"
     },
-    map: {
-        height: 120,
-        width: Dimensions.get('window').width,
+    mapHeaderText:{
+        fontSize: 18,
+        fontFamily: 'OpenSans_600SemiBold'
     },
     footer: {
         height: 60,
         padding: 10,
+        flexDirection:"row",
+        justifyContent:"space-between",
+        backgroundColor:"#F9F9F9"
     },
     callButton:{
-        flex:1,
-        alignItems: "center",
+        backgroundColor: "#FFEFBE",
         justifyContent: "center",
-        backgroundColor: "lightgreen",
-        borderRadius: 12
+        alignItems: "center",
+        height:40,
+        paddingHorizontal:20,
+        borderRadius: 30,
+    },
+    callButtonContainer:{
+        paddingHorizontal: 10,
+    },
+    contactContainer:{
+        justifyContent:"flex-start",
+        flexDirection: "row"
+    },
+    bookingButton:{
+        backgroundColor: "yellow",
+        justifyContent: "center",
+        alignItems: "center",
+        height:40,
+        borderRadius: 16,
+        paddingHorizontal:40,
+    },
+    bookingButtonText:{
+        fontFamily: "OpenSans_600SemiBold"
+    },
+    bookingButtonContainer:{
+        justifyContent:"flex-end"
+    },
+    editButtonContainer:{
+        flex:1,
+        justifyContent: "center",
+        alignItems: "stretch",
+    },
+    heartIcon:{
+        flex:1,
+        padding: 10,
+        alignItems: "flex-end"
+    },
+    regularFontFamily:{
+        color: "black",
+        fontFamily: "OpenSans_400Regular",
     },
 }); 
 
-const pickerSelectStyles = StyleSheet.create({
-    inputIOS: {
-      fontSize: 16,
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      borderWidth: 1,
-      borderColor: 'black',
-      borderRadius: 4,
-      color: 'black',
-      paddingRight: 30, // to ensure the text is never behind the icon
-      backgroundColor: "#BC544B",
-      width: "100%",
-    },
-    inputAndroid: {
-      fontSize: 16,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: 'black',
-      borderRadius: 8,
-      color: 'black',
-      paddingRight: 30, // to ensure the text is never behind the icon
-      backgroundColor: "#BC544B",
-      width: "100%",
-    },
-  });
 export default HotelDetailsScreen;

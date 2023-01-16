@@ -2,15 +2,10 @@ import * as SecureStore from 'expo-secure-store';
 import axiosInstance from './axiosInstanceConfig';
 
 const getHotelDetails = async(id) => {
-    const token = await SecureStore.getItemAsync('token')
 
-    const response = axiosInstance.get('/api/hotel/' + id,    
-    {
-        headers: {
-            Cookie: "PetMyPetJWT=" + token,
-        },
-    })
+    const response = axiosInstance.get('/api/hotel/' + id)
     .then((response) => {
+        console.log(response.data)
         return response.data
     })
     .catch(function(error) {

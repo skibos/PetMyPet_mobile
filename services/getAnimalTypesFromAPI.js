@@ -2,14 +2,8 @@ import * as SecureStore from 'expo-secure-store';
 import axiosInstance from './axiosInstanceConfig';
 
 const getAnimalTypesFromAPI = async() => {
-    const token = await SecureStore.getItemAsync('token')
 
-    const response = axiosInstance.get('/api/getAllTypes/',    
-    {
-        headers: {
-            Cookie: "PetMyPetJWT=" + token,
-        },
-    })
+    const response = axiosInstance.get('/api/getAllTypes/')
     .then((response) => {
         return response.data
     })

@@ -1,33 +1,49 @@
 import React, {useState} from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableHighlight} from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import axiosInstance from '../services/axiosInstanceConfig';
+import { useTheme } from '@react-navigation/native';
+import TextField from '../components/TextField';
 
 const ForgotPasswordScreen = () => {
+    const { colors } = useTheme();
     const [email, setEmail] = useState();
+
+    const sendEmail = () => {
+
+        //alert("Pressed!");
+        axiosInstance.post('email/generateToken/' + email + '/' + 'pass').then( res => {
+
+            alert("Na podany adres wysłano link resetujący hasło.");
+        })
+        .catch( err => {
+            
+            alert("Resetowanie hasła nie powiodło się.");
+        })
+    }
 
     return (
         <View style={styles.screen}>
-            <View style={styles.header}>
-                <Text style={styles.headerText}>PRZYPOMNIJ HASŁO</Text>
-            </View>
             <View style={styles.formSection}>
-                <View style={styles.iconAndInput}>
-                    <Icon name="account" size={40}/>
-                    <TextInput
+                <View style={styles.inputContainer}>
+                    <TextField
                         style={styles.input}
-                        placeholder="Wpisz email"
+                        label="Wpisz email"
+                        labelTop="Email"
                         value={email}
                         onChangeText={setEmail}
                      />
                 </View>
-                <TouchableHighlight>
-                        <View style={styles.forgotButton}>
-                            <Text>Odzyskaj hasło</Text>
+                <View style={styles.forgotButtonContainer}>
+                    <TouchableOpacity onPress={() => sendEmail()}>
+                        <View style={[styles.forgotButton, {backgroundColor: colors.primary}]}>
+                            <Text style={styles.forgotButtonText}>Odzyskaj hasło</Text>
                         </View>
-                </TouchableHighlight> 
+                    </TouchableOpacity> 
+                </View>
             </View>
             <View style={styles.waterMark}>
-                <Icon name="lock-reset" size={180} color="rgba(0,0,0,0.5)"/>
+                <Icon name="lock-reset" size={180} color={colors.primary} style={{opacity: 0.3}}/>
             </View>
         </View>
     );
@@ -37,42 +53,38 @@ const styles = StyleSheet.create({
     screen: {
         flex: 1,
     },
-    header: {
-        flex: 1,
-        marginLeft: "10%",
-        marginRight: "10%",
-        justifyContent: "center"
-    },
-    headerText: {
-        fontSize: 25,
-        fontWeight: "bold",
-    },
     formSection: {
         flex: 3,
+        marginTop: "10%",
         marginLeft: "10%",
         marginRight: "10%",
         flexDirection: "column",
     },
-    iconAndInput: {
-        flexDirection: "row",
-        justifyContent: "space-between",
+    inputContainer: {
         paddingBottom: 10,
     },
     input:{
-        height: 40,
-        width: "80%",
-        borderWidth: 1,
+        height: 65,
         padding: 10,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
+    },
+    forgotButtonContainer:{
+        marginTop: 25,
+        marginBottom: 20,
+        marginHorizontal: "30%",
     },
     forgotButton: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#DDD",
         height: 40,
-        marginTop: 10,
+        borderRadius: 20,
+    },
+    forgotButtonText:{
+        fontFamily: "OpenSans_600SemiBold"
     },
     waterMark: {
-        flex: 6,
+        flex: 5,
         alignItems: "center",
     },
 });

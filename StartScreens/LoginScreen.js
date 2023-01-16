@@ -4,18 +4,24 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableHighlight,
+  TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  ImageBackground,
+  Image,
+  SafeAreaView
+  
 } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Formik } from "formik";
 import * as Yup from "yup";
 import { AuthContext } from "../storage/loginContext";
-
+import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
+import { useTheme } from '@react-navigation/native';
+import TextField from '../components/TextField';
 
 const LoginScreen = ({ navigation }) => {
-
+  const { colors } = useTheme();
   const { signIn } = React.useContext(AuthContext);
 
   const validationSchema = Yup.object({
@@ -28,88 +34,87 @@ const LoginScreen = ({ navigation }) => {
   });
 
   return (
-    <KeyboardAvoidingView
-    behavior={Platform.OS === "ios" ? "padding" : "height"}
-    style={styles.screen}
-    enabled={false}
-    >
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>LOGOWANIE</Text>
-      </View>
-
-      <Formik
-        validationSchema={validationSchema}
-        initialValues={{
-          username: "",
-          password: "",
-        }}
-        onSubmit={(values) => {
-          signIn(values)
-        }}
+    <ImageBackground source={require("../assets/loginbackground.jpg")} resizeMode="cover" style={styles.backgroundImage} imageStyle={{opacity:0.5}}>
+      <KeyboardAvoidingView
+      behavior={"padding"}
+      style={styles.screen}
+      keyboardVerticalOffset={20}
       >
-        {(formikProps) => (
-          <View style={styles.formSection}>
-            <View style={styles.iconAndInput}>
-              <Icon name="account" size={40} />
-              <TextInput
-                style={styles.input}
-                placeholder="Wpisz email"
-                value={formikProps.values.username}
-                onChangeText={formikProps.handleChange('username')}
-              />
-            </View>
-            <Text style={{ fontSize: 10, color: 'red' }}>{ formikProps.touched.username && formikProps.errors.username}</Text>
-
-            <View style={styles.iconAndInput}>
-              <Icon name="lock" size={40} />
-              <TextInput
-                secureTextEntry={true}
-                style={styles.input}
-                placeholder="Wpisz hasło"
-                value={formikProps.values.password}
-                onChangeText={formikProps.handleChange('password')}
-              />
-            </View>
-            <Text style={{ fontSize: 10, color: 'red' }}>{ formikProps.touched.password && formikProps.errors.password}</Text>
-
-            <TouchableHighlight onPress={formikProps.handleSubmit} >
-              <View style={styles.loginButton}>
-                <Text>Zaloguj się</Text>
-              </View>
-            </TouchableHighlight>
-
-            <View style={styles.forgotPasswordText}>
-              <Text
-                onPress={() => {
-                  navigation.navigate("ForgotPassword");
-                }}
-              >
-                Przypomnij hasło
-              </Text>
-            </View>
-          </View>
-        )}
-      </Formik>
-      <View style={styles.waterMark}>
-        <Icon name="dog-side" size={150} color="rgba(0,0,0,0.5)" />
-      </View>
-      <View style={styles.footer}>
-        <Text style={styles.baseText}>
-          Nie posiadasz konta?
-          <Text
-            style={styles.registerText}
-            onPress={() => {
-              navigation.navigate("Register");
+      <View style={styles.screen}>
+          <Formik
+            validationSchema={validationSchema}
+            initialValues={{
+              username: "",
+              password: "",
+            }}
+            onSubmit={(values) => {
+              signIn(values)
             }}
           >
-            {" "}
-            Zarejestruj się
-          </Text>
-        </Text>
-      </View>
-    </View>
-    </KeyboardAvoidingView>
+            {(formikProps) => (
+              <View style={styles.formSection}>
+                <View style={styles.inputSection}>
+                  <View style={styles.inputContainer}>
+                    <TextField
+                      style={styles.input}
+                      label="Wpisz Email"
+                      labelTop="Email"
+                      value={formikProps.values.username}
+                      onChangeText={formikProps.handleChange('username')}
+                    />
+                  </View>
+                  <Text style={{ fontSize: 10, color: 'red' }}>{ formikProps.touched.username && formikProps.errors.username}</Text>
+
+                  <View style={styles.inputContainer}>
+                    <TextField
+                      secureTextEntry={true}
+                      style={styles.input}
+                      label="Wpisz hasło" 
+                      labelTop="Hasło"
+                      value={formikProps.values.password}
+                      onChangeText={formikProps.handleChange('password')}
+                    />
+                  </View>
+                  <Text style={{ fontSize: 10, color: 'red' }}>{ formikProps.touched.password && formikProps.errors.password}</Text>
+                  <View style={styles.forgotPasswordTextContainer}>
+                    <Text
+                      onPress={() => {
+                        navigation.navigate("ForgotPassword");
+                      }}
+                      style={styles.forgotPasswordText}
+                    >
+                      Przypomnij hasło
+                    </Text>
+                  </View>
+                </View>
+                  <View style={styles.loginButtonContainer}>
+                    <TouchableOpacity onPress={formikProps.handleSubmit} >
+                      <View style={[styles.loginButton, {backgroundColor: colors.primary}]}>
+                        <Text style={styles.loginButtonText}>Zaloguj się</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+            )}
+          </Formik>
+          
+          <View style={styles.footer}>
+            <Text style={styles.baseText}>
+              Nie posiadasz konta?
+              <Text
+                style={styles.registerText}
+                onPress={() => {
+                  navigation.navigate("Register");
+                }}
+              >
+                {" "}
+                Zarejestruj się
+              </Text>
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 };
 
@@ -117,48 +122,48 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  header: {
-    flex: 2,
-    justifyContent: "flex-end",
-    margin: "10%",
+  backgroundImage:{
+    flex: 1,
   },
-  headerText: {
-    fontSize: 25,
-    fontWeight: "bold",
+
+  formSection:{
+    marginTop: "20%",
+    flex: 7,
   },
-  formSection: {
-    flex: 3,
-    marginLeft: "10%",
-    marginRight: "10%",
+  inputSection: {
+    flex: 5,
+    marginHorizontal: 20,
     flexDirection: "column",
   },
-  iconAndInput: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingTop: 10,
-    paddingBottom: 10,
+  inputContainer: {
+    paddingVertical: 10,
   },
-  input: {
-    height: 40,
-    width: "80%",
-    borderWidth: 1,
+  input:{
+    height: 65,
     padding: 10,
+    backgroundColor:"#f0f0f0",
+    borderRadius: 8,
+  },
+  loginButtonContainer:{
+    marginHorizontal: "30%",
+    marginTop: 60,
   },
   loginButton: {
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#DDD",
     height: 40,
-    marginTop: 10,
+    borderRadius: 20,
   },
-  forgotPasswordText: {
-    paddingTop: 10,
+  loginButtonText:{
+    fontFamily: "OpenSans_600SemiBold"
+  },
+  forgotPasswordTextContainer: {
     fontSize: 12,
+    justifyContent:"flex-start",
+    alignItems: "flex-end",
   },
-  waterMark: {
-    flex: 2,
-    justifyContent: "center",
-    alignItems: "center",
+  forgotPasswordText:{
+    fontFamily: "OpenSans_400Regular"
   },
   footer: {
     flex: 1,
@@ -167,9 +172,14 @@ const styles = StyleSheet.create({
   },
   baseText: {
     fontSize: 15,
+    fontFamily: "OpenSans_400Regular"
   },
   registerText: {
-    fontWeight: "bold",
+    fontFamily: "OpenSans_600SemiBold",
+  },
+  regularFontFamily:{
+    color: "black",
+    fontFamily: "OpenSans_400Regular",
   },
 });
 

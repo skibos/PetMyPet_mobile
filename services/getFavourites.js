@@ -4,7 +4,7 @@ import axiosInstance from './axiosInstanceConfig';
 const getFavourites = async() => {
     const token = await SecureStore.getItemAsync('token')
     const username = await SecureStore.getItemAsync('username')
-
+    
     const response = axiosInstance.get('/api/favourites/' + username,    
     {
         headers: {
@@ -32,6 +32,7 @@ const getFavourites = async() => {
               console.log('Error', error.message);
           }
     })
+    
 
     return response;
 }

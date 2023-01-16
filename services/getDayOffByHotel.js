@@ -13,7 +13,7 @@ const getDayOffByHotel = async(id) => {
         { withCredentials: true }
     )
         .then((response) => {
-            return response.data
+            return response.data.reverse()
         })
         .catch(function (error) {
             if (error.response) {

@@ -1,16 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button, TouchableHighlight, FlatList} from 'react-native';
+import { View, Text, StyleSheet, Button, TouchableOpacity, FlatList, Image} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import getUserPets from '../services/getUserPets';
 import deleteAnimal from '../services/deleteAnimal';
+import { useTheme } from '@react-navigation/native';
+import EmptyList from '../components/EmptyList'
 
 const ListOfPetsScreen = ({ navigation, route }) => {
+    const { colors } = useTheme();
     const [pets, setPets] = useState([]);
 
     useEffect(() => {
-        getUserPets().then(data => setPets(data));
-    }, []);
+        const unsubscribe = navigation.addListener('focus', () => {
+            getUserPets().then(data => {
+                if(data !== null && data !== undefined){
+                data.forEach(async(pet) => {
+                    if(!pets.some(el => el.id == pet.id)){
+                        setPets(prevState => [pet, ...prevState]);
+                    }
+                })
+            }
+            else{
+                setPets([]);
+            }
+            });
+        });
+            
+        return unsubscribe;
+    }, [navigation, pets, route.params?.editPet, route.params?.addPet]);
 
+    
+    
     useEffect(() => {
         if (route.params?.editPet) { /* if edited, edit on list and reset params */
             let array = [...pets];
@@ -18,56 +38,98 @@ const ListOfPetsScreen = ({ navigation, route }) => {
             array[objIndex] = route.params.editPet;
             setPets(array);
         }
-        else if(route.params?.addPet){
-            setPets(previousState => [route.params?.addPet, ...previousState]);
-        }
     }, [route.params?.editPet, route.params?.addPet]);
+
+    const chooseIcon = (type) => {
+        switch(type){
+            case 1:
+                return(
+                    <Image 
+                        source={require('../assets/cat.png')}
+                        style={{width: "80%", height: "80%", }}
+                    />
+                );
+            case 2:
+                return(
+                    <Image 
+                        source={require('../assets/dog.png')}
+                        style={{width: "70%", height: "70%", }}
+                    />
+                );
+            case 3:
+                return(
+                    <Image 
+                        source={require('../assets/bird.png')}
+                        style={{width: "80%", height: "80%", }}
+                    />
+                );
+            case 4:
+                return(
+                    <Image 
+                        source={require('../assets/chameleon.png')}
+                        style={{width: "80%", height: "80%", }}
+                    />
+                );
+            case 5:
+                return(
+                    <Image 
+                    source={require('../assets/track.png')}
+                    style={{width: "80%", height: "80%", }}
+                />
+                );
+        }
+    }
 
     const SinglePet = ({ item, navigation }) => (
         <View style={styles.singleElement}>
-            <View style={styles.photoContainer}>
-                <Text>Fotka</Text>
-            </View>
-            <View style={styles.textContainer}>
-                <Text>{item.name}</Text>
-            </View>
-            <View style={styles.editDeleteContainer}>
-                <View style={styles.edit}>
-                    <Icon name="pencil-box" size={45} onPress={() => {
-                        navigation.navigate("EditPet",
-                        {
-                            id: item.id,
-                            name: item.name,
-                            weight: item.weight,
-                            animalType: item.animalType,
-                            birthDate: item.birthDate,
-                            notes: item.notes,
-                            vaccinations: item.vaccinations,
-                            visibility: item.visibility,
-                            owner: item.owner,
-                            accommodatedIn : item.accommodatedIn
-                        })
-                    }}/>
+            <View style={styles.singleElementCon}>
+                <View style={styles.photoContainer}>
+                    <View style={styles.photo}>
+                        {chooseIcon(item.animalType)}
+                    </View>
                 </View>
-                <View style={styles.delete}>
-                    <Icon name="close-box" size={45} color="red" onPress={() => {
+                <View style={styles.textContainer}>
+                    <Text style={styles.text}>{item.name}</Text>
+                </View>
+                <View style={styles.editDeleteContainer}>
+                    <View style={styles.editContainer}>
+                        <TouchableOpacity onPress={() => {
+                            navigation.navigate("EditPet",
+                            {
+                                id: item.id,
+                                name: item.name,
+                                weight: item.weight,
+                                animalType: item.animalType,
+                                birthDate: item.birthDate,
+                                notes: item.notes,
+                                vaccinations: item.vaccinations,
+                                visibility: item.visibility,
+                                owner: item.owner,
+                                accommodatedIn : item.accommodatedIn
+                            })
+                        }}>
+                            <View style={[styles.edit, {backgroundColor: colors.primary}]}>
+                                <Text style={styles.buttonText}>Edytuj</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
+                    <View style={styles.deleteContainer}>
+                        <TouchableOpacity 
+                            onPress={() => {
                             deleteAnimal(item.id)
                             setPets(pets.filter(({id}) => id != item.id));
-                        }}/>
+                            }}
+                            style={styles.buttonText}
+                        >
+                            <View style={styles.delete}>
+                                <Text>Usuń</Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
         </View>
     );
-
-    const Button = () => (
-        <View>
-            <TouchableHighlight onPress={() => {navigation.navigate('AddPet')}}>
-                <View style={styles.button}>
-                    <Text>Dodaj zwierzę</Text>
-                </View>
-            </TouchableHighlight>
-        </View>
-    );    
 
     const renderPet = ({ item }) => (
           <SinglePet
@@ -80,11 +142,10 @@ const ListOfPetsScreen = ({ navigation, route }) => {
             <View style={styles.screen}>
                 <FlatList
                     data={pets}
+                    numColumns={2}
                     renderItem={renderPet}
                     keyExtractor={(item) => item.id}
-                    ListFooterComponent={<Button/>}
-                    ListFooterComponentStyle={styles.buttons}
-                    contentContainerStyle={styles.flatListStyle}
+                    ListEmptyComponent={<EmptyList message="Twoja lista zwierząt jest pusta!"/>}
                 />
             </View>
     );
@@ -93,53 +154,77 @@ const ListOfPetsScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
+        backgroundColor: "white"
     },
-    singleElement:{
-        marginTop: 10,
-        padding: 10,
-        backgroundColor: "#DCDCDC",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexDirection: "row",
+    singleElement:{ /* double container for fix problem with odd count of elements */
+        flex:0.5,
+    },
+    singleElementCon:{
+        flex:1,
+        margin: 10,
+        backgroundColor: "#f5f5f5",
+        flexDirection: "column",
+        borderRadius: 12,
     },
     photoContainer: {
-        flex: 1,
+        flex:2,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "aqua",
-        height: 80,
-        borderRadius: 30,
+        padding: 10,
     },
-    textContainer: {
-        flex: 2,
-        backgroundColor: "lightgreen",
-        borderRadius: 12,
-        justifyContent: "center",
-        alignItems: "center",
-        marginHorizontal: 20,
-        height: 40,
-    },
-    editDeleteContainer: {
-        flex: 1,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center"
-    },
-    flatListStyle: {
-        flexGrow: 1,
-    },
-    buttons: {
-        flex:1, 
-        justifyContent: 'flex-end'
-    },
-    button: {
+    photo:{
         flex:1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "orange",
-        height: 40,
-        marginVertical: 10,
-    }
+        backgroundColor: "#dcdcdc",
+        height: 60,
+        width: 60,
+        borderRadius: 30,
+    },
+    textContainer: {
+        flex:1,
+        justifyContent: "center",
+        alignItems: "center",
+        padding:10,
+    },
+    text:{
+        color: "black",
+        fontFamily: "OpenSans_400Regular"
+    },
+    editDeleteContainer: {
+        flex:1,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding:10,
+    },
+    editContainer:{
+        flex:1,
+        margin:5,
+    },
+    edit:{
+        flex:1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "lightgreen",
+        padding:10,
+        borderRadius:12,
+    },
+    deleteContainer:{
+        flex:1,
+        margin:5,
+    },
+    delete:{
+        flex:1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "salmon",
+        padding:10,
+        borderRadius:12,
+    },
+    buttonText:{
+        fontFamily: "OpenSans_600SemiBold"
+    },
 });
 
 export default ListOfPetsScreen;

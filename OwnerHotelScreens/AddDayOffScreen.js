@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react';
-import { View, Text, StyleSheet, Button, TextInput, TouchableHighlight, Platform, Modal, Pressable} from 'react-native';
+import { View, Text, StyleSheet, Button, TouchableOpacity, TouchableHighlight, Platform, Modal, TouchableWithoutFeedback} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
@@ -8,15 +8,15 @@ import * as SecureStore from 'expo-secure-store';
 import getAnimalTypes from '../storage/getAnimalTypes';
 import * as Yup from "yup";
 import { Formik } from "formik";
+import { useTheme } from '@react-navigation/native';
+import TextField from '../components/TextField';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import getHotelDetails from '../services/getHotelDetails';
 
 const AddDayOffScreen = ({ route, navigation }) => {
-
-    const [choosedHotelId, setChoosedHotelId] = useState({
-        label  : "",
-        value  : "",
-        hotelId: ""
-    });
-    const [hotel, setHotel] = useState([]);             /* array to picker */
+    const { colors } = useTheme();
+    const [hotelName, setHotelName] = useState();
+    const [hotelId, setHotelId] = useState();
     const [typeAnimals, setTypeAnimals] = useState([]); /* list to picker */
     
     const [dateFrom, setDateFrom] = useState(new Date());
@@ -46,61 +46,20 @@ const AddDayOffScreen = ({ route, navigation }) => {
         setShowDate(arg);
     };
 
-    useEffect(() => {
+    useEffect(async() => {
+        try {
+            const id = await AsyncStorage.getItem('editHotelId')
+            if(id !== null) {
+                setHotelId(parseInt(id))
+                getHotelDetails(id).then((data) => setHotelName(data.name))
+            }
+        } catch(e) {
+            console.log(e)
+        }
+
         getTypes();
-        getHotels();
-    },  [])
-
-    async function getHotels(){ // get hotels from api and convert to picker format
-        const username = await SecureStore.getItemAsync('username')
-        const token = await SecureStore.getItemAsync('token')
         
-        axiosInstance.get('/api/hotelByOwner/' + username,
-        {
-            headers: {
-                Cookie: "PetMyPetJWT=" + token,
-            },
-        },
-            { withCredentials: true }
-        )
-            .then((response) => {
-                if(response.data.length > 0){
-                    let hotels = [];
-                    let singleHotel = {};
-                    response.data.forEach(element => {
-                        singleHotel = {
-                             label  : element.name,
-                             value  : element.name,
-                             hotelId: element.id
-                        }
-                         hotels.push(singleHotel);
-                    });
-                    setHotel(hotels);
-                }
-            })
-            .catch(function (error) {
-                if (error.response) {
-                    // The request was made and the server responded with a status code
-                    // that falls out of the range of 2xx
-                    console.log(error.response.data);
-                    console.log(error.response.status);
-                    console.log(error.response.headers);
-                  } else if (error.request) {
-                      // The request was made but no response was received
-                      // `error.request` is an instance of XMLHttpRequest in the 
-                      // browser and an instance of
-                      // http.ClientRequest in node.js
-                      console.log(error.request);
-                  } else {
-                      // Something happened in setting up the request that triggered an Error
-                      console.log('Error', error.message);
-                  }
-            })
-        }
-
-        function findId(value){
-            setChoosedHotelId(hotel.find(el => el.value == value)) 
-        }
+    },  [])
 
         function getTypes(){ // get hotels from asyncStorage and convert to picker format
             getAnimalTypes().then(res => {
@@ -125,8 +84,6 @@ const AddDayOffScreen = ({ route, navigation }) => {
                 .required('Wpisz datę początkową'),
             endingDate: Yup.string()
                 .required('Wpisz datę końcową'),
-            hotelName: Yup.string()
-                .required("Uzupełnij hotel"),
         })
 
     return (
@@ -144,11 +101,11 @@ const AddDayOffScreen = ({ route, navigation }) => {
                     async(values) => {
                         const token = await SecureStore.getItemAsync('token')
                         axiosInstance.post('/api/saveClosedDay', {
-                            hotelId     : choosedHotelId.hotelId.toString(),
+                            hotelId     : hotelId,
                             animalType  : values.animalType,
                             startingDate: values.startingDate,
                             endingDate  : values.endingDate,
-                            hotelName   : values.hotelName
+                            hotelName   : hotelName
                         },
                         {
                             headers:{
@@ -156,11 +113,10 @@ const AddDayOffScreen = ({ route, navigation }) => {
                             }
                         }
                         )
-                            .then(res => navigation.navigate({
-                                name: 'DaysOff',
-                                params: { dayOff: res.data },
-                                merge: true,
-                            })
+                            .then((res) => {
+                            navigation.navigate("EditHotelTab", {
+                                screen: 'DaysOffScreen',
+                            })}
                             )
                             .catch(function (error) {
                                 if (error.response) {
@@ -193,23 +149,20 @@ const AddDayOffScreen = ({ route, navigation }) => {
                 isValid,
             }) => (
                 <>
-            <View style={styles.inputsContainer}>
-                <View style={styles.singleInputContainer}>
-                    <View style={styles.inputAndText}>
-                        <View style={styles.textNebenInput}>
-                            <Text>Od kiedy:</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            editable={false}
-                            placeholder="Od kiedy"
-                            value={dateFrom.toISOString().split('T')[0]}
-                        />
-                    </View>
-                    <Icon name="calendar-arrow-right" size={40} onPress={() => {
-                        showDatepicker(1);
-                        setModalVisible(true);
-                    }}/>
+            <View style={styles.formSection}>
+
+                <View style={styles.inputData}>
+                    <TextField
+                        style={[styles.input, {color: "black"}]}
+                        label="Wpisz od kiedy"
+                        labelTop="Od kiedy"
+                        isData={true}
+                        showData={() => {
+                            showDatepicker(1);
+                            setModalVisible(true);
+                        }}
+                        value={dateFrom.toISOString().split('T')[0]}
+                    />
                 </View>
                 {errors.startingDate &&
                     <Text style={{ fontSize: 10, color: 'red' }}>{errors.startingDate}</Text>
@@ -224,21 +177,26 @@ const AddDayOffScreen = ({ route, navigation }) => {
                                 display="spinner"
                                 onChange={(event, selectedDate) => {
                                     onChangeDateFrom(event, selectedDate)
-                                    setFieldValue("startingDate", selectedDate.toISOString().split('T')[0])
+                                    if( selectedDate !== undefined){
+                                        setFieldValue("startingDate", selectedDate.toISOString().split('T')[0])
+                                    }
+                                    else{
+                                        setFieldValue("startingDate", new Date().toISOString().split('T')[0])
+                                    }
                                 }}
+                                themeVariant="light"
                                 style={{ flex: 1 }}
                             />
-                            <TouchableHighlight
-                                style={{marginBottom: 100 }}
-                                onPress={() => {
+                            <View style={styles.saveButtonContainer}>
+                                <TouchableOpacity onPress={() => {
                                     setModalVisible(!modalVisible)
                                     setShowDate(0)
-                                }}
-                            >
-                                <View style={styles.addButton}>
-                                    <Text>Zatwierdz date</Text>
-                                </View>
-                            </TouchableHighlight>
+                                }}>
+                                        <View style={[styles.saveButton, {backgroundColor: colors.primary, marginBottom: 100}]}>
+                                            <Text style={styles.saveButtonText}>Zatwierdz date</Text>
+                                        </View>
+                                </TouchableOpacity>
+                            </View>
                         </Modal> ) : (
                         <DateTimePicker
                         value={dateFrom}
@@ -246,27 +204,29 @@ const AddDayOffScreen = ({ route, navigation }) => {
                         display="default"
                         onChange={(event, selectedDate) => {
                             onChangeDateFrom(event, selectedDate)
-                            setFieldValue("startingDate", selectedDate.toISOString().split('T')[0])
+                            if( selectedDate !== undefined){
+                                setFieldValue("startingDate", selectedDate.toISOString().split('T')[0])
+                            }
+                            else{
+                                setFieldValue("startingDate", new Date().toISOString().split('T')[0])
+                            }
                         }}
                         />
                     ))}
-                <View style={styles.singleInputContainer}>
-                    <View style={styles.inputAndText}>
-                        <View style={styles.textNebenInput}>
-                            <Text>Do kiedy:</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            editable={false}
-                            placeholder="Od kiedy"
-                            value={dateTo.toISOString().split('T')[0]}
-                        />
+                    <View style={styles.singleInputContainer}>
+
+                                    <TextField
+                                        style={[styles.input, {color: "black"}]}
+                                        label="Wpisz do kiedy"
+                                        labelTop="Do kiedy"
+                                        isData={true}
+                                        showData={() => {
+                                            showDatepicker(2);
+                                            setModalVisible(true);
+                                        }}
+                                        value={dateTo.toISOString().split('T')[0]}
+                                    />
                     </View>
-                    <Icon name="calendar-arrow-left" size={40} onPress={() => {
-                        showDatepicker(2);
-                        setModalVisible(true);
-                    }}/>
-                </View>
                 {errors.endingDate &&
                     <Text style={{ fontSize: 10, color: 'red' }}>{errors.endingDate}</Text>
                 }
@@ -280,22 +240,27 @@ const AddDayOffScreen = ({ route, navigation }) => {
                                 display="spinner"
                                 onChange={(event, selectedDate) => {
                                     onChangeDateTo(event, selectedDate)
-                                    setFieldValue("endingDate", selectedDate.toISOString().split('T')[0])
+                                    if( selectedDate !== undefined){
+                                        setFieldValue("endingDate", selectedDate.toISOString().split('T')[0])
+                                    }
+                                    else{
+                                        setFieldValue("endingDate", new Date().toISOString().split('T')[0])
+                                    }
                                 }}
+                                themeVariant="light"
                                 style={{ flex: 1 }}
                                 minimumDate={dateFrom}
                             />
-                            <TouchableHighlight
-                                style={{marginBottom: 100 }}
-                                onPress={() => {
-                                    setModalVisible(!modalVisible)
-                                    setShowDate(0)
-                                }}
-                            >
-                                <View style={styles.addButton}>
-                                    <Text>Zatwierdz date</Text>
-                                </View>
-                            </TouchableHighlight>
+                            <View style={styles.saveButtonContainer}> 
+                                <TouchableOpacity onPress={() => {
+                                        setModalVisible(!modalVisible)
+                                        setShowDate(0)
+                                }}>
+                                        <View style={[styles.saveButton, {backgroundColor: colors.primary, marginBottom: 100}]}>
+                                            <Text style={styles.saveButtonText}>Zatwierdz date</Text>
+                                        </View>
+                                </TouchableOpacity>
+                            </View>
                         </Modal> ) : (
                         <DateTimePicker
                         value={dateTo}
@@ -303,40 +268,17 @@ const AddDayOffScreen = ({ route, navigation }) => {
                         display="default"
                         onChange={(event, selectedDate) => {
                             onChangeDateTo(event, selectedDate)
-                            setFieldValue("endingDate", selectedDate.toISOString().split('T')[0])
+                            if( selectedDate !== undefined){
+                                setFieldValue("endingDate", selectedDate.toISOString().split('T')[0])
+                            }
+                            else{
+                                setFieldValue("endingDate", new Date().toISOString().split('T')[0])
+                            }
                         }}
                         minimumDate={dateFrom}
                         />
                     ))}
-                <View style={{padding: 15}}>
-                    <RNPickerSelect
-                        onValueChange={(value) => {
-                            findId(value)
-                            setFieldValue("hotelName", value)
-                        }}
-                        items={hotel}
-                        useNativeAndroidPickerStyle={false}
-                        style={{
-                            ...pickerSelectStyles,
-                            iconContainer: {
-                            top: 10,
-                            right: 10,
-                            },
-                        }}
-                        placeholder={{
-                            label: 'Wybierz hotel',
-                            value: '',
-                        }}
-                        Icon={() => {
-                            return <Icon name="arrow-down" size={24} />;
-                        }}
-                        value={values.hotelName}
-                    />
-                </View>
-                {errors.hotelName &&
-                    <Text style={{ fontSize: 10, color: 'red' }}>{errors.hotelName}</Text>
-                }
-                <View style={{padding: 15}}>
+                <View style={{paddingVertical: 15}}>
                     <RNPickerSelect
                         onValueChange={(value) => {
                             setFieldValue("animalType", value)
@@ -346,8 +288,8 @@ const AddDayOffScreen = ({ route, navigation }) => {
                         style={{
                             ...pickerSelectStyles,
                             iconContainer: {
-                            top: 10,
-                            right: 10,
+                                top: 20,
+                                right: 20,
                             },
                         }}
                         placeholder={{
@@ -364,15 +306,12 @@ const AddDayOffScreen = ({ route, navigation }) => {
                     <Text style={{ fontSize: 10, color: 'red' }}>{errors.animalType}</Text>
                 }
             </View>
-            <View style={styles.watermark}>
-                <Icon name="panda" size={130} color="rgba(0,0,0,0.5)"/>
-            </View>
-            <View style={styles.buttonContainer}>
-                <TouchableHighlight onPress={handleSubmit}>
-                    <View style={styles.addButton}>
-                        <Text>Dodaj dzień wolny</Text>
+            <View style={styles.saveButtonContainer}>
+                <TouchableOpacity onPress={handleSubmit}>
+                    <View style={[styles.saveButton, {backgroundColor: colors.primary}]}>
+                        <Text style={styles.saveButtonText}>Dodaj dzień wolny</Text>
                     </View>
-                </TouchableHighlight>
+                </TouchableOpacity>
             </View>
             </>
             )}
@@ -384,74 +323,87 @@ const AddDayOffScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     screen: {
         flex: 1,
-        marginTop: 10,
-        marginBottom: 10,
+        backgroundColor: "white",
     },
-    inputsContainer:{
-        flex:4,
-        marginLeft: 10,
-        marginRight: 10,
+    formSection:{
+        flex:5,
+        marginTop: "5%",
+        marginLeft: "10%",
+        marginRight: "10%",
+        flexDirection: "column",
+    },
+    inputContainer: {
+        paddingVertical: 20,
     },
     singleInputContainer:{
+
+        paddingVertical: 20,
+    },
+    inputCalendarContainer:{
+        flex:3,
+        justifyContent: "center",
+        alignItems: "stretch",
+    },
+    iconCalendar: {
         flex:1,
-        padding: 15,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center"
-    },
-    inputAndText:{
-        flex: 1,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingRight: 10,
-    },
-    textNebenInput:{
-        flex:1
+        justifyContent: "center",
+        alignItems: "flex-end",
     },
     input:{
-        flex: 3,
-        height: 40,
-        borderWidth: 1,
+        height: 65,
         padding: 10,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
+    },
+    inputData:{
+        height: 65,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
     },
     watermark: {
-        flex: 2,
+        flex: 3,
         justifyContent: "center",
         alignItems: "center",
     },
-    buttonContainer: {
-        flex: 1,
-        justifyContent: "center",
+    saveButtonContainer:{
+        marginTop: 15,
+        marginBottom: 20,
+        marginHorizontal: "30%",
     },
-    addButton: {
+    saveButton: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "orange",
         height: 40,
-    }
+        borderRadius: 20,
+    },
+    saveButtonText:{
+        fontFamily: "OpenSans_600SemiBold",
+    },
 });
 
 const pickerSelectStyles = StyleSheet.create({
-    inputIOS: {
-      fontSize: 16,
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      borderWidth: 1,
-      borderColor: 'black',
-      borderRadius: 4,
-      color: 'black',
-      paddingRight: 30, // to ensure the text is never behind the icon
+    placeholder: {
+        color: "grey",
     },
-    inputAndroid: {
-      fontSize: 16,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: 'black',
+    inputIOS: {
+      fontSize: 14,
+      fontFamily: "OpenSans_400Regular",
+      padding: 10,
+      height: 65,
       borderRadius: 8,
       color: 'black',
       paddingRight: 30, // to ensure the text is never behind the icon
+      backgroundColor:"#f0f0f0",
+    },
+    inputAndroid: {
+      fontSize: 14,
+      fontFamily: "OpenSans_400Regular",
+      padding: 10,
+      height: 65,
+      borderRadius: 8,
+      color: 'black',
+      paddingRight: 30, // to ensure the text is never behind the icon
+      backgroundColor:"#f0f0f0",
     },
   });
 

@@ -1,63 +1,93 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button, TouchableWithoutFeedback, FlatList, Platform } from 'react-native';
+import { View, Text, StyleSheet, Button, TouchableWithoutFeedback, FlatList, Image, Alert, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import getReservations from '../services/getReservations';
-import deleteReservation from '../services/deleteReservation';
+import getImage from "../services/getImage"
+import axiosInstance from '../services/axiosInstanceConfig';
+import HalfModal from '../components/halfModal';
+import getHotelDetails from '../services/getHotelDetails'
+import { useTheme } from '@react-navigation/native';
+import patchReservation from '../services/patchReservation';
+import getDatesBetween from '../services/getDatesBetween';
+import EmptyList from '../components/EmptyList';
+
 
 const ReservationListScreen = ({ navigation, route }) => {
     const [reservations, setReservations] = useState([])
-
+    const [modalVisible, setModalVisible] = useState(false)
+    const [priceOfReservation, setPriceOfReservation] = useState()
+    const [item, setItem] = useState()
     
-    useEffect(() => {
-        getReservations().then(data => setReservations(data));
-    }, []);
-
-    useEffect(() => {
-        if (route.params?.saveReservation) { /* if added reservation */
-            let newObj = {};
-            newObj.hotel = {};
-            newObj.animal = {};
-            newObj["id"] = route.params?.saveReservation.dataFromPost.id
-            newObj.hotel["name"] = route.params?.saveReservation.hotelName
-            newObj.animal["name"] = route.params?.saveReservation.petName
-            newObj["checkIn"] = route.params?.saveReservation.dataFromPost.checkIn
-            newObj["checkOut"] = route.params?.saveReservation.dataFromPost.checkOut
-            setReservations(previousState => [newObj, ...previousState])
-        }
-    }, [route.params?.saveReservation]);
+    const { colors } = useTheme();
+    
+    useEffect(() => { /* after each load this screen, get notification and save it to array */
+        const unsubscribe = navigation.addListener('focus', () => {
+            getReservations().then(async(data) => {
+                if(data !== null && data !== undefined){
+                    data.forEach(async(reservation) => {
+                        var arr = []
+                        arr = await getImage(reservation.hotel.id);
+                        if(arr !== null && arr !== undefined){
+                            arr = arr.map(el => axiosInstance.defaults.baseURL + "/images/getResizedImageByPath/" + el + "/?width=100&height=100");
+                            reservation.hotel.image = arr[0];
+                        }
+                        if(!reservations.some(el => el.id == reservation.id)){
+                            setReservations(prevState => [reservation, ...prevState]);
+                        }
+                    })
+                }
+                else{
+                    setReservations([]);
+                }
+            });
+        });
+        
+        return unsubscribe;
+    }, [navigation, reservations]);
 
     const SingleReservation = ({ item }) => {
+            
         return (
-            <View style={styles.singleElement}>
-                <View style={styles.informationContainer}>
-                    <View style={styles.information}>
-                        <Text>{item.checkIn} - {item.checkOut}</Text>
-                        <Text style={{ color: "black" }}>{item.hotel.name}</Text>
-                        <Text style={{ color: "black" }}>{item.animal.name}</Text>
+                <View style={styles.singleReservation}>
+                    <View style={styles.headerSingleReservationContainer}>
+                        <View></View>
+                        <Text style={styles.headerCityText}>{item.hotel.city}</Text>
+                        <Text style={styles.headerDateText}>{item.checkIn} - {item.checkOut}</Text>
+                    </View>
+                    <View style={styles.informationSingleReservationContainer}>
+                        <View style={styles.photoContainer}>
+                            <View style={styles.photo}>
+                                <Image 
+                                    source={item.hotel.image ? {uri: item.hotel.image} : require('../assets/brakZdj.png')}
+                                    style={{flex:1 , width: "100%", height: "100%", aspectRatio: 1,borderRadius: 8}}
+                                />
+                            </View>
+                        </View>
+                        <View style={styles.informations}>
+                                <Text style={styles.informationHotelName}>{item.hotel.name}</Text>
+                            <View style={styles.paddingToText}>
+                                <Text style={styles.informationDatePrice}>{item.checkIn} - {item.checkOut}</Text>
+                                <Text style={{color:"black"}}>Cena: {Number((getDatesBetween(new Date(item.checkIn), new Date(item.checkOut)).length*item.hotel.prices[item.animal.animalType]).toFixed(2))} zł</Text>
+                            </View>
+                            <View style={styles.paddingToText}>
+                                <Text style={styles.informationStatus}>Oczekuje na potwierdzenie</Text>
+                            </View>
+                        </View>
+                        <View style={styles.button}>
+                            <TouchableWithoutFeedback onPress={() => {
+                                setItem(item)
+                                setPriceOfReservation(Number((getDatesBetween(new Date(item.checkIn), new Date(item.checkOut)).length*item.hotel.prices[item.animal.animalType]).toFixed(2)))
+                                setModalVisible(true);
+                            }}>
+                                <Icon name="dots-vertical" size={30} color="black"/>
+                            </TouchableWithoutFeedback>
+
+                        </View>
                     </View>
                 </View>
-                <View style={styles.statusContainerWaiting}>
-                    <View style={styles.status}>
-                        <Text>Oczekująca</Text>
-                    </View>
-                    <View style={styles.icon}>
-                        <Icon name="close-box" size={40} color="yellow" onPress={() => {
-                            deleteReservation(item.id)
-                            setReservations(reservations.filter(({id}) => id != item.id));
-                        }}/>
-                    </View>
-                </View>
-            </View>
-        )
+            )
     };
 
-    const HistoryButton = () => (
-        <TouchableWithoutFeedback onPress={() => {navigation.navigate('ReservationHistory')}}>
-            <View style={styles.historyButtonOutside}>
-                <Text>Historia rezerwacji</Text>
-            </View>
-        </TouchableWithoutFeedback>
-      );    
 
     const renderReservation = ({ item }) => (
         <SingleReservation
@@ -72,10 +102,35 @@ const ReservationListScreen = ({ navigation, route }) => {
                 data={reservations}
                 renderItem={renderReservation}
                 keyExtractor={(item) => item.id}
-                ListFooterComponent={<HistoryButton/>}
-                ListFooterComponentStyle={styles.historyButton}
-                contentContainerStyle={styles.flatListStyle}
+                ListEmptyComponent={<EmptyList message="Brak rezerwacji!"/>}
             />
+            { modalVisible &&
+                <HalfModal 
+                    visible={modalVisible}
+                    item={item}
+                    priceOfReservation={priceOfReservation}
+                    isHistory={false}
+                    isOwner={false}
+                    onClickOutside={() => {
+                        setModalVisible(false)
+                    }}
+                    onCancelReservation={() => {
+                        setModalVisible(false)
+                        Alert.alert(
+                            '',
+                            'Czy na pewno chcesz anulować rezerwację?',
+                            [
+                                { text: "Nie", style: "cancel" },
+                                { text: "Tak", onPress: () => {
+                                    patchReservation(item, "R")
+                                    setReservations(reservations.filter((el) => el.id != item.id));
+                                } },
+                            ]
+                            
+                        )
+                    }}
+                />
+            }
         </View>
     );
 };
@@ -84,55 +139,71 @@ const styles = StyleSheet.create({
     screen: {
         flex: 1,
     },
-    singleElement: {
+    singleReservation: {
+        flex:1,
         marginTop: 10,
         padding: 10,
-        backgroundColor: "#DCDCDC",
-        justifyContent: "space-around",
-        alignItems: "center",
-        flexDirection: "row",
-    },
-    informationContainer: {
-        flex: 3,
-    },
-    information: {
+        backgroundColor: "#F5F5F5",
+        
         flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
     },
-    statusContainerWaiting: {
-        flex: 2,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center"
-    },
-    status: {
-        justifyContent: "center",
-        alignItems: "center",
-        height: 30,
-        overflow: 'hidden',
-        borderRadius: 10,
-        backgroundColor: "yellow",
-        flex: 3,
-    },
-    icon: {
+    headerSingleReservationContainer:{
         flex:1,
+        flexDirection: "column",
+        padding: 10,
+        justifyContent: "flex-start",
+        alignItems: "flex-start",
     },
-    historyButton: {
-        flex:1, 
-        justifyContent: 'flex-end'
+    informationSingleReservationContainer:{
+        flex:2,
+        padding: 10,
+        flexDirection: "row",
+        borderWidth: 1,
+        borderColor: "lightgrey",
+        borderRadius: 8,
+        //backgroundColor: "blue"
     },
-    historyButtonOutside: {
+    photoContainer:{
+        flex:2,
+        paddingRight: 10,
+        paddingTop: 5,
+        paddingBottom: 15,
+    },
+    paddingToText:{
+        marginTop: 5,
+    },
+    photo:{
+        flex:1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "orange",
-        height: 40,
-        marginTop: 10,
-        marginBottom: 10,
+        borderRadius: 8,
     },
-    flatListStyle: {
-        flexGrow: 1,
+    informations:{
+        flex:6,
     },
+    button:{
+        flex:1,
+        alignItems: "flex-end",
+    },
+    headerCityText:{
+        fontSize: 16,
+        fontFamily: "OpenSans_700Bold",
+    },
+    headerDateText:{
+        fontFamily: "OpenSans_400Regular",
+        color: "grey",
+    },
+    informationHotelName:{
+        fontFamily: "OpenSans_600SemiBold",
+    },
+    informationDatePrice:{
+        fontFamily: "OpenSans_400Regular",
+    },
+    informationStatus:{
+        fontFamily: "OpenSans_400Regular",
+        color: "#E0E629"
+    }
+
 });
 
 export default ReservationListScreen;

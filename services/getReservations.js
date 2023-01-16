@@ -7,7 +7,7 @@ export default async function getReservations() {
 
         const username = await SecureStore.getItemAsync('username')/* put getusernameandpass when will be fixed */
         const token = await SecureStore.getItemAsync('token')
-
+        console.log(token)
         return axiosInstance.get('/api/userReservations/' + username,
         {
             headers: {

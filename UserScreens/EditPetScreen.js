@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import { ScrollView, View, Text, StyleSheet, TextInput, TouchableHighlight, Platform, Switch, Modal, KeyboardAvoidingView} from 'react-native';
+import { ScrollView, View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, Switch, Modal, TouchableWithoutFeedback, Alert} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
@@ -9,11 +9,12 @@ import { Formik } from "formik";
 import * as SecureStore from 'expo-secure-store';
 import axiosInstance from '../services/axiosInstanceConfig';
 import {KeyboardAwareScrollView} from 'react-native-keyboard-aware-scroll-view';
-
+import { useTheme } from '@react-navigation/native';
+import TextField from '../components/TextField';
 
 
 const EditPetScreen = ({ route, navigation }) => {
-
+    const { colors } = useTheme();
     const { id, name, weight, animalType, birthDate, notes, vaccinations, visibility, owner, accommodatedIn } = route.params;
 
     const [birthDateOfPet, setbirthDateOfPet] = useState(new Date(birthDate));
@@ -54,9 +55,9 @@ const EditPetScreen = ({ route, navigation }) => {
     }
     const validationSchema = Yup.object({
         name: Yup.string()
-            .required('Uzupełnij imie'),
+            .required('Uzupełnij imię'),
         weight: Yup.string()
-            .required('Uzupełnij wage'),
+            .required('Uzupełnij wagę'),
         animalType: Yup.string()
             .required('Uzupełnij typ zwierzęcia'),
         birthDate: Yup.string()
@@ -67,7 +68,7 @@ const EditPetScreen = ({ route, navigation }) => {
 
     return (
     <KeyboardAwareScrollView>
-        <ScrollView >
+        <ScrollView style={styles.screen}>
             <View style={styles.formSection}>
                 <Formik
                     validationSchema={validationSchema}
@@ -104,13 +105,20 @@ const EditPetScreen = ({ route, navigation }) => {
                                 }
                             }
                             )
-                                .then(res => navigation.navigate({
-                                    name: 'ListOfPets',
-                                    params: {
-                                        editPet: res.data 
-                                    },
-                                    merge: true,
-                                })
+                                .then((res) => 
+                                Alert.alert(
+                                    'Zedytowanie pomyślnie!',
+                                    'Informacje o Twoim zwierzaku zostały zaktualizowane!',
+                                    [{ text: "OK", onPress: () => 
+                                        navigation.navigate({
+                                            name: 'ListOfPets',
+                                            params: {
+                                                editPet: res.data 
+                                            },
+                                            merge: true,
+                                        })
+                                    }]
+                                )
                                 )
                                 .catch(function (error) {
                                     if (error.response) {
@@ -151,8 +159,8 @@ const EditPetScreen = ({ route, navigation }) => {
                             style={{
                                 ...pickerSelectStyles,
                                 iconContainer: {
-                                top: 10,
-                                right: 10,
+                                    top: 20,
+                                    right: 20,
                                 },
                             }}
                             placeholder={{
@@ -169,47 +177,42 @@ const EditPetScreen = ({ route, navigation }) => {
                         <Text style={{ fontSize: 10, color: 'red' }}>{errors.animalType}</Text>
                     }
                     <View style={styles.inputContainer}>
-                        <TextInput
+                        <TextField
                             style={styles.input}
                             value={values.name}
                             onChangeText={handleChange('name')}
-                            placeholder="Imie"
+                            label="Wpisz imię"
+                            labelTop="Imię"
                         />
                     </View>
                     {errors.name &&
                         <Text style={{ fontSize: 10, color: 'red' }}>{errors.name}</Text>
                     }
                     <View style={styles.inputContainer}>
-                        <TextInput
+                        <TextField
                             style={styles.input}
                             value={values.weight}
                             onChangeText={handleChange('weight')}
-                            placeholder="Waga"
+                            label="Wpisz wagę"
+                            labelTop="Waga"
                             keyboardType="numeric"
                         />
                     </View>
                     {errors.weight &&
                         <Text style={{ fontSize: 10, color: 'red' }}>{errors.weight}</Text>
                     }
-                    <View style={styles.inputContainerData}>
-                        <View style={styles.inputAndText}>
-                            <View style={styles.textNebenInput}>
-                                <Text>Data urodzenia:</Text>
-                            </View>
-                            <View style={styles.inputCalendarContainer}>
-                                <TextInput
-                                    style={[styles.input, styles.inputCalendar]}
-                                    editable={false}
-                                    value={birthDateOfPet.toISOString().split('T')[0]}
-                                />
-                            </View>
-                        </View>
-                        <View style={styles.calendarIcon}>
-                            <Icon name="calendar-arrow-right" size={40} onPress={() => {
+                    <View style={styles.inputContainer}>
+                        <TextField
+                            style={[styles.input, {color: "black"}]}
+                            label="Wpisz datę urodzenia"
+                            labelTop="Data urodzenia"
+                            isData={true}
+                            showData={() => {
                                 showDatepicker(1);
                                 setModalVisible(true);
-                            }}/>
-                        </View>
+                            }}
+                            value={birthDateOfPet.toISOString().split('T')[0]}
+                        />
                     </View>
                     {errors.birthDate &&
                         <Text style={{ fontSize: 10, color: 'red' }}>{errors.birthDate}</Text>
@@ -222,20 +225,28 @@ const EditPetScreen = ({ route, navigation }) => {
                                     value={birthDateOfPet}
                                     mode="date"
                                     display="spinner"
-                                    onChange={onChangebirthDateOfPet}
-                                    style={{ flex: 6 }}
-                                />
-                                <TouchableHighlight
+                                    themeVariant="light"
+                                    onChange={(event, selectedDate) => {
+                                        onChangebirthDateOfPet(event, selectedDate)
+                                        if( selectedDate !== undefined){
+                                            setFieldValue("birthDate", selectedDate.toISOString().split('T')[0])
+                                        }
+                                        else{
+                                            setFieldValue("birthDate", new Date().toISOString().split('T')[0])
+                                        }
+                                    }}
                                     style={{ flex: 1 }}
-                                    onPress={() => {
+                                />
+                            <View style={styles.saveButtonContainer}> 
+                                <TouchableOpacity onPress={() => {
                                         setModalVisible(!modalVisible)
                                         setShowDate(0)
-                                    }}
-                                >
-                                    <View style={styles.dataModalButton}>
-                                        <Text>Zatwierdz date</Text>
-                                    </View>
-                                </TouchableHighlight>
+                                }}>
+                                        <View style={[styles.saveButton, {backgroundColor: colors.primary, marginBottom: 100}]}>
+                                            <Text style={styles.saveButtonText}>Zatwierdz date</Text>
+                                        </View>
+                                </TouchableOpacity>
+                            </View>   
                             </Modal> ) : (
                             <DateTimePicker
                             value={birthDateOfPet}
@@ -243,35 +254,43 @@ const EditPetScreen = ({ route, navigation }) => {
                             display="default"
                             onChange={(event, selectedDate) => {
                                 onChangebirthDateOfPet(event, selectedDate)
-                                setFieldValue("birthDate", selectedDate.toISOString().split('T')[0])
+                                if( selectedDate !== undefined){
+                                    setFieldValue("birthDate", selectedDate.toISOString().split('T')[0])
+                                }
+                                else{
+                                    setFieldValue("birthDate", new Date().toISOString().split('T')[0])
+                                }
                             }}
                             />
                         ))}
                     <View style={styles.inputContainerData}>
-                        <Text>Aktualne szczepienia: </Text>
+                        <Text style={styles.regularFontFamily}>Aktualne szczepienia: </Text>
                         <Switch
                             onValueChange={(value) => {setFieldValue("vaccinations", value)}}
                             value={values.vaccinations}
                         />
                     </View>
                     <View style={styles.inputContainerMulti}>
-                        <TextInput
+                        <TextField
                             multiline={true}
                             style={styles.inputDescription}
                             value={values.notes}
                             onChangeText={handleChange('notes')}
-                            placeholder="Opis / Uwagi szczegółowe*"
+                            label="Wpisz opis / uwagi szczegółowe*"
+                            labelTop="Opis / uwagi szczegółowe"
                             numberOfLines={4}
                         />
                     </View>
                     {errors.notes &&
                         <Text style={{ fontSize: 10, color: 'red' }}>{errors.notes}</Text>
                     }
-                    <TouchableHighlight onPress={handleSubmit}>
-                            <View style={styles.saveButton}>
-                                <Text>Zapisz</Text>
-                            </View>
-                    </TouchableHighlight>
+                    <View style={styles.saveButtonContainer}>
+                        <TouchableOpacity onPress={handleSubmit}>
+                                <View style={[styles.saveButton, {backgroundColor: colors.primary}]}>
+                                    <Text style={styles.saveButtonText}>Zapisz</Text>
+                                </View>
+                        </TouchableOpacity>
+                    </View>
                     </>
                 )}
                 </Formik>
@@ -282,6 +301,10 @@ const EditPetScreen = ({ route, navigation }) => {
 };
 
 const styles = StyleSheet.create({
+    screen: {
+        flex: 1,
+        backgroundColor: "white"
+    },
     formSection: {
         marginTop: "5%",
         marginHorizontal: "10%",
@@ -294,16 +317,24 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     inputDescription: {
-        borderWidth: 1,
         padding: 10,
+        paddingTop: 20,
+        paddingBottom: 20,
         flex:1,
-        height: 80,
+        height: 85,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
     },
     input:{
-        height: 40,
-        borderWidth: 1,
+        height: 65,
         padding: 10,
-        flex:1,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
+    },
+    inputData:{
+        height: 65,
+        backgroundColor:"#f0f0f0",
+        borderRadius: 8,
     },
     inputCalendar:{
         flex:1,
@@ -335,41 +366,48 @@ const styles = StyleSheet.create({
     vaccines: {
         alignItems: "center",
     },
+    saveButtonContainer:{
+        marginTop: 15,
+        marginBottom: 20,
+        marginHorizontal: "30%",
+    },
     saveButton: {
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#DDD",
         height: 40,
-        marginTop: 15,
-        marginBottom: 20,
+        borderRadius: 20,
     },
-    dataModalButton: {
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "orange",
-        height: 40,
-    }
+    regularFontFamily:{
+        color: "black",
+        fontFamily: "OpenSans_400Regular",
+    },
+    saveButtonText:{
+        fontFamily: "OpenSans_600SemiBold"
+    },
 });
 const pickerSelectStyles = StyleSheet.create({
-    inputIOS: {
-      fontSize: 12,
-      paddingVertical: 12,
-      paddingHorizontal: 10,
-      borderWidth: 1,
-      borderColor: 'black',
-      borderRadius: 4,
-      color: 'black',
-      paddingRight: 30, // to ensure the text is never behind the icon
+    placeholder: {
+        color: "grey",
     },
-    inputAndroid: {
-      fontSize: 12,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderWidth: 1,
-      borderColor: 'black',
+    inputIOS: {
+      fontSize: 14,
+      fontFamily: "OpenSans_400Regular",
+      padding: 10,
+      height: 65,
       borderRadius: 8,
       color: 'black',
       paddingRight: 30, // to ensure the text is never behind the icon
+      backgroundColor:"#f0f0f0",
+    },
+    inputAndroid: {
+      fontSize: 14,
+      fontFamily: "OpenSans_400Regular",
+      padding: 10,
+      height: 65,
+      borderRadius: 8,
+      color: 'black',
+      paddingRight: 30, // to ensure the text is never behind the icon
+      backgroundColor:"#f0f0f0",
     },
   });
 
